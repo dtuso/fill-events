@@ -9,3 +9,8 @@ https://www.digitalocean.com/community/tutorials/how-to-install-node-js-on-a-cen
 5. make
 6. sudo make install
 7. node --version *to be sure it installed!!*
+
+https://www.digitalocean.com/community/tutorials/how-to-install-git-on-centos-7
+
+1. sudo yum install git
+2. git --version
