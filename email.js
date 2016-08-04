@@ -27,9 +27,10 @@ var emailAddresses = {
   fileNames = {
     logging: "data/logging.txt", 
     events: "data/events.json" },
-  timerMinutes = 10,
+  timerMinutes = 5,
   timerMs = timerMinutes * 60 * 1000,
-  aliveCntr = 0;
+  aliveCntr = 0,
+  errorCntr = 0;
 
 prompt.start();
 prompt.get({properties: {
@@ -107,31 +108,38 @@ function setWatcherTimeout() {
 function execWatcher() {
   try {
 
-	// 25 = every 4 hours or so based upon about 10 minutes per cycle
-	if(aliveCntr % 25 == 0) {
-	  consoleWhite("sending still alive email " + aliveCntr);
-	  sendEmail("Still alive (" + aliveCntr + ")", emailAddresses.monitor);
-	}
-	aliveCntr++;
+  	// 25 = every 4 hours or so based upon about 10 minutes per cycle
+  	if(aliveCntr % 25 == 0) {
+  	  consoleWhite("sending still-alive email " + aliveCntr);
+  	  sendEmail("Still alive (" + aliveCntr + ")", emailAddresses.monitor, null, 'Still alive');
+  	}
+  	aliveCntr++;
 	
     var fillUrl = url + getDateFormatted();
     consoleWhite("Downloading url: " + fillUrl);
     request(fillUrl, function(error, res, body) {
       if(error) {
-        throw error;
+        consoleRed("request error for " + fillUrl + " : " + error.toString());
+		sendEmail("Error: " + error.toString(), emailAddresses.monitor, null, 'Fill event request error');
+        setWatcherTimeout();
+		if(errorCntr++ % 5 == 0) {
+			consoleWhite("sending request error " + errorCntr);
+			sendEmail("Still erroring (" + errorCntr + ")", emailAddresses.sms, 'Fill requests error continues!');
+		}
+        return;
       }
-
+	  errorCntr = 0;
       consoleGreen('Downloaded events successful.');
-	  
-	  var currentEvents = parseEventDescArr(body),
-		previousEvents = getPreviousEvents(),
-		newEvents = findNewEvents(previousEvents, currentEvents);
-	  logEventsRead(currentEvents);
+    
+  	  var currentEvents = parseEventDescArr(body),
+  		previousEvents = getPreviousEvents(),
+  		newEvents = findNewEvents(previousEvents, currentEvents);
+  	  logEventsRead(currentEvents);
 	  
       if(newEvents.length > 0 ) {
-        var eventsStr = newEvents.join( ' :: ');
+        var eventsStr = newEvents.join( ' :: ');		
         consoleYellow("Found new events: " + eventsStr);
-        sendEmail(eventsStr, emailAddresses.sms, emailAddresses.monitor);          
+        sendEmail(eventsStr, emailAddresses.sms, emailAddresses.monitor, "Found new events");          
       } else {
         consoleYellow("No new events found... :-( ");
       }
@@ -139,7 +147,6 @@ function execWatcher() {
 	  
       setWatcherTimeout();
     });
-
 
   } catch(e) {
     consoleRed("execWatcher error: " + e.toString());
@@ -155,7 +162,7 @@ function parseEventDescArr(body){
   var currentEvents = _.pluck(fullObjHasSeatsEvents, 'shortDesc');
   return currentEvents;
 }
-function sendEmail(eventDetail, toEmailAddress, ccEmailAddress) {
+function sendEmail(eventDetail, toEmailAddress, ccEmailAddress, subject) {
   var server  = emailjs.server.connect({
      user:     emailAddresses.from, 
      password: password, 
@@ -167,7 +174,7 @@ function sendEmail(eventDetail, toEmailAddress, ccEmailAddress) {
   var sendEnvelope = {
      from:    "<" + emailAddresses.from + " >", 
      to:      "<" + toEmailAddress + ">",
-     subject: "Fill-A-Seat " + getDateTime(),
+     subject: subject==null ? "Fill-A-Seat " + getDateTime() : subject,
      text:    eventDetail
   };
   if(ccEmailAddress) sendEnvelope.cc = "<" + ccEmailAddress + ">";
@@ -182,13 +189,18 @@ function sendEmail(eventDetail, toEmailAddress, ccEmailAddress) {
 }
 
 function getDateTime() {
+	var fixZeros = function(str) {
+		str = str + '';
+		if (str == '0') return '00';
+		return str;
+	}
 	var currentdate = new Date(),
-	  datetime = currentdate.getDate() + "/"
-		+ (currentdate.getMonth()+1)  + "/" 
-		+ currentdate.getFullYear() + " "  
-		+ currentdate.getHours() + ":"  
-		+ currentdate.getMinutes() + ":" 
-		+ currentdate.getSeconds();
+	  datetime = fixZeros(currentdate.getDate()) + "/"
+		+ fixZeros(currentdate.getMonth()+1)  + "/" 
+		+ fixZeros(currentdate.getFullYear()) + " "  
+		+ fixZeros(currentdate.getHours()) + ":"  
+		+ fixZeros(currentdate.getMinutes()) + ":" 
+		+ fixZeros(currentdate.getSeconds());
 	return datetime;				
 }
 
