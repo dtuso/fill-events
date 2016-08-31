@@ -13,15 +13,16 @@ try {
 
 
 } catch (e) {
-  consoleRed(e.toString());
-  consoleYellow('Please run `npm install`\n');
+  console.log(e.toString());
+  console.log('\n\nPlease run `npm install`\n');
   process.exit(1);
 }
 
 var emailAddresses = {
-	from: "admin@dominicminicoopers.com",
-	sms: "6232715020@vtext.com",
-	monitor: "dominicminicoopers@yahoo.com"},
+    from: "admin@dominicminicoopers.com",
+    sms: "6232715020@vtext.com",
+    monitor: "dominicminicoopers@yahoo.com"
+  },
   password = "",
   url = "http://www.fillaseatphoenix.com/includes/eventjson.php?d=",
   fileNames = {
@@ -106,54 +107,86 @@ function setWatcherTimeout() {
 }
 
 function execWatcher() {
+
   try {
 
-  	// 25 = every 4 hours or so based upon about 10 minutes per cycle
-  	if(aliveCntr % 25 == 0) {
-  	  consoleWhite("sending still-alive email " + aliveCntr);
-  	  sendEmail("Still alive (" + aliveCntr + ")", emailAddresses.monitor, null, 'Still alive');
-  	}
-  	aliveCntr++;
-	
+    // 25 = every 4 hours or so based upon about 10 minutes per cycle
+    if(aliveCntr % 25 == 0) {
+      consoleWhite("sending still-alive email " + aliveCntr);
+      sendEmail("Still alive (" + aliveCntr + ")", emailAddresses.monitor, null, 'Still alive');
+    }
+    aliveCntr++;
+
     var fillUrl = url + getDateFormatted();
     consoleWhite("Downloading url: " + fillUrl);
-    request(fillUrl, function(error, res, body) {
-      if(error) {
-        consoleRed("request error for " + fillUrl + " : " + error.toString());
-		sendEmail("Error: " + error.toString(), emailAddresses.monitor, null, 'Fill event request error');
-        setWatcherTimeout();
-		if(errorCntr++ % 5 == 0) {
-			consoleWhite("sending request error " + errorCntr);
-			sendEmail("Still erroring (" + errorCntr + ")", emailAddresses.sms, 'Fill requests error continues!');
-		}
-        return;
-      }
-	  errorCntr = 0;
-      consoleGreen('Downloaded events successful.');
-    
-  	  var currentEvents = parseEventDescArr(body),
-  		previousEvents = getPreviousEvents(),
-  		newEvents = findNewEvents(previousEvents, currentEvents);
-  	  logEventsRead(currentEvents);
-	  
-      if(newEvents.length > 0 ) {
-        var eventsStr = newEvents.join( ' :: ');		
-        consoleYellow("Found new events: " + eventsStr);
-        sendEmail(eventsStr, emailAddresses.sms, emailAddresses.monitor, "Found new events");          
-      } else {
-        consoleYellow("No new events found... :-( ");
-      }
-      saveCurrentEvents(currentEvents); // save the current events so they become previous events next time around
-	  
-      setWatcherTimeout();
-    });
+    request(fillUrl, processRequestResponse);
 
   } catch(e) {
     consoleRed("execWatcher error: " + e.toString());
-    setWatcherTimeout();
+  }
+
+
+}
+
+function processRequestResponse(error, res, body) {
+
+  try {
+
+      if(error) {
+
+        var errMsgSubject = 'Fill event request error';
+        consoleRed("request error for " + fillUrl + " : " + error.toString());
+        sendEmail("Error: " + error.toString(), emailAddresses.monitor, null, errMsgSubject);
+
+        sendSmsIfErrorsContinue(errMsgSubject);
+
+        setWatcherTimeout();
+        return;
+
+      } else if (body == null || body.length < 2) {
+        var errMsgSubject = 'Fill body empty or null';
+        consoleRed("body error for " + fillUrl + " : " + (body == null ? "" : body));
+        sendSmsIfErrorsContinue(errMsgSubject);
+        
+        setWatcherTimeout();
+        return;
+      }
+      errorCntr = 0;
+      consoleGreen('Downloaded events successful.');
+
+      var currentEvents = parseEventDescArr(body);
+
+      var previousEvents = getPreviousEvents(),
+      newEvents = findNewEvents(previousEvents, currentEvents);
+      logEventsRead(currentEvents);
+
+      if(newEvents.length > 0 ) {
+      var eventsStr = newEvents.join( ' :: ');    
+      consoleYellow("Found new events: " + eventsStr);
+      sendEmail(eventsStr, emailAddresses.sms, emailAddresses.monitor, "Found new events");          
+      } else {
+      consoleYellow("No new events found... :-( ");
+      }
+      saveCurrentEvents(currentEvents); // save the current events so they become previous events next time around
+      
+      setWatcherTimeout();
+
+  } catch(e) {
+    consoleRed("processRequestResponse error: " + e.toString());
+  }
+
+}
+
+
+function sendSmsIfErrorsContinue(errMsgSubject) {
+  if(errorCntr++ % 5 == 0) {
+    consoleWhite("sending errors continue " + errorCntr);
+    sendEmail("Still erroring (" + errorCntr + ")", emailAddresses.sms, errMsgSubject);
   }
 }
-function parseEventDescArr(body){
+
+function parseEventDescArr(body) {
+
   body = body.substring(1, body.length-1);      
   var objData = JSON.parse(body);
   var eventsJson = unescape(objData.data);
