@@ -25,6 +25,7 @@ var emailAddresses = {
   },
   password = "",
   url = "http://www.fillaseatphoenix.com/includes/eventjson.php?d=",
+  fillUrl = '',
   fileNames = {
     logging: "data/logging.txt", 
     events: "data/events.json" },
@@ -117,7 +118,7 @@ function execWatcher() {
     }
     aliveCntr++;
 
-    var fillUrl = url + getDateFormatted();
+    fillUrl = url + getDateFormatted();
     consoleWhite("Downloading url: " + fillUrl);
     request(fillUrl, processRequestResponse);
 
@@ -171,8 +172,12 @@ function processRequestResponse(error, res, body) {
       
       setWatcherTimeout();
 
-  } catch(e) {
+  } catch(e) { 
+	var errMsgSubject = 'Fill event processRequestResponse error';
     consoleRed("processRequestResponse error: " + e.toString());
+	sendEmail("Error: " + error.toString(), emailAddresses.monitor, null, errMsgSubject);
+	sendSmsIfErrorsContinue(errMsgSubject);			
+	setWatcherTimeout();
   }
 
 }
