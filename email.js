@@ -20,7 +20,7 @@ try {
 
 var emailAddresses = {
     from: "admin@dominicminicoopers.com",
-    sms: "6232715020@vtext.com",
+    sms: "6232715020@vzwpix.com",
     monitor: "dominicminicoopers@yahoo.com"
   },
   password = "",
@@ -85,6 +85,7 @@ function findNewEvents(previousData, currentData) {
 function getPreviousEvents() {
   consoleWhite("Reading file: " + fileNames.events);
   var fileContents = fs.readFileSync(fileNames.events,{encoding:"UTF8"});
+  if(!fileContents || fileContents.length ==0) fileContents = "{}";
   var events = JSON.parse(fileContents);
   consoleGreen("Loaded events from file.")
   return events;
@@ -135,22 +136,22 @@ function processRequestResponse(error, res, body) {
 
       if(error) {
 
-        var errMsgSubject = 'Fill event request error';
-        consoleRed("request error for " + fillUrl + " : " + error.toString());
-        sendEmail("Error: " + error.toString(), emailAddresses.monitor, null, errMsgSubject);
+          var errMsgSubject = 'Fill event request error';
+          consoleRed("request error for " + fillUrl + " : " + error.toString());
+          sendEmail("Error: " + error.toString(), emailAddresses.monitor, null, errMsgSubject);
 
-        sendSmsIfErrorsContinue(errMsgSubject);
+          sendSmsIfErrorsContinue(errMsgSubject);
 
-        setWatcherTimeout();
-        return;
+          setWatcherTimeout();
+          return;
 
       } else if (body == null || body.length < 2) {
-        var errMsgSubject = 'Fill body empty or null';
-        consoleRed("body error for " + fillUrl + " : " + (body == null ? "" : body));
-        sendSmsIfErrorsContinue(errMsgSubject);
-        
-        setWatcherTimeout();
-        return;
+          var errMsgSubject = 'Fill body empty or null';
+          consoleRed("body error for " + fillUrl + " : " + (body == null ? "" : body));
+          sendSmsIfErrorsContinue(errMsgSubject);
+          
+          setWatcherTimeout();
+          return;
       }
       errorCntr = 0;
       consoleGreen('Downloaded events successful.');
@@ -159,25 +160,34 @@ function processRequestResponse(error, res, body) {
 
       var previousEvents = getPreviousEvents(),
       newEvents = findNewEvents(previousEvents, currentEvents);
+	  var numNewEvents = newEvents.length;
       logEventsRead(currentEvents);
-
-      if(newEvents.length > 0 ) {
-      var eventsStr = newEvents.join( ' :: ');    
-      consoleYellow("Found new events: " + eventsStr);
-      sendEmail(eventsStr, emailAddresses.sms, emailAddresses.monitor, "Found new events");          
+	  var shorten = function(str,max){
+		var len = Math.min(str.length,max);
+		return str.substring(0,len);
+	  }
+      if(numNewEvents > 0 ) {
+		var eventsStr = shorten(newEvents[0],25);
+		var subject = shorten(newEvents[0],10);
+		for(var i=1;i<numNewEvents;i++){
+	      eventsStr += "\r\n" + shorten(newEvents[i],25);
+	      subject += ", " + shorten(newEvents[i],10);
+		}
+        consoleYellow("Found new events: " + eventsStr);
+        sendEmail(eventsStr, emailAddresses.sms, emailAddresses.monitor, subject);          
       } else {
-      consoleYellow("No new events found... :-( ");
+          consoleYellow("No new events found... :-( ");
       }
       saveCurrentEvents(currentEvents); // save the current events so they become previous events next time around
       
       setWatcherTimeout();
 
   } catch(e) { 
-	var errMsgSubject = 'Fill event processRequestResponse error';
-    consoleRed("processRequestResponse error: " + e.toString());
-	sendEmail("Error: " + error.toString(), emailAddresses.monitor, null, errMsgSubject);
-	sendSmsIfErrorsContinue(errMsgSubject);			
-	setWatcherTimeout();
+      var errMsgSubject = 'Fill event processRequestResponse error';
+      consoleRed("processRequestResponse error: " + e.toString());
+      sendEmail("Error: " + e.toString(), emailAddresses.monitor, null, errMsgSubject);
+      sendSmsIfErrorsContinue(errMsgSubject);			
+      setWatcherTimeout();
   }
 
 }
