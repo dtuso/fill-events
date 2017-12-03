@@ -24,7 +24,7 @@ var emailAddresses = {
     monitor: "dominicminicoopers@yahoo.com"
   },
   password = "",
-  url = "http://www.fillaseatphoenix.com/includes/eventjson.php?d=",
+  url = "https://www.seatjunky.com/phx/includes/eventjson.php?d=",
   fillUrl = '',
   fileNames = {
     logging: "data/logging.txt", 
@@ -169,7 +169,7 @@ function processRequestResponse(error, res, body) {
       if(numNewEvents > 0 ) {
 		var eventsStr = shorten(newEvents[0],25);
 		var subject = shorten(newEvents[0],10);
-		for(var i=1;i<numNewEvents;i++){
+		for(var i=1; i < (numNewEvents-1); i++){
 	      eventsStr += "\r\n" + shorten(newEvents[i],25);
 	      subject += ", " + shorten(newEvents[i],10);
 		}
