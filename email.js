@@ -121,7 +121,7 @@ function execWatcher() {
 
     fillUrl = url + getDateFormatted();
     consoleWhite("Downloading url: " + fillUrl);
-    request(fillUrl, processRequestResponse);
+    request({uri:fillUrl,method:'GET',"rejectUnauthorized": false}, processRequestResponse);
 
   } catch(e) {
     consoleRed("execWatcher error: " + e.toString());
