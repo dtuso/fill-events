@@ -1,5 +1,6 @@
 try {
-  var request     = require('request');
+  var bent        = require('bent');
+  var getString     = bent('string')
   var _           = require('underscore');
   var chalk       = require('chalk');
   var path        = require('path');
@@ -50,7 +51,6 @@ prompt.get({properties: {
 
     password = result.password;
 
-    // run the watcher now that we have an email password
     execWatcher();
   });
 
@@ -75,13 +75,14 @@ function getNotSoldOutEvents(events) {
   //   cs: '0',
   //   isSoldOut: null,
   //   imgurl: '/includes/get_img.php?eid=922&size=lg_preview&site_version=24481' }
-
   var notSoldOutEvents = _.reject(events, {isSoldOut: 1 });
   return notSoldOutEvents;
 }
+
 function findNewEvents(previousData, currentData) {
   return _.difference(currentData, previousData);
 }
+
 function getPreviousEvents() {
   consoleWhite("Reading file: " + fileNames.events);
   var fileContents = fs.readFileSync(fileNames.events,{encoding:"UTF8"});
@@ -97,21 +98,15 @@ function saveCurrentEvents(eventsObj) {
   consoleGreen("Saved events to file.")
 }
 
-function getDateFormatted() {
-  var today = new Date();
-  return today.getFullYear() + "-" + (today.getMonth()+1) + "-" + today.getDate();
-}
-
 function setWatcherTimeout() {
   var msRnd = timerMs * getRandom(0.75, 1.25);
   consoleWhite("Setting timeout for " + msRnd + "ms");
   setTimeout(execWatcher, msRnd);
 }
 
-function execWatcher() {
+async function execWatcher() {
 
   try {
-
     // 25 = every 4 hours or so based upon about 10 minutes per cycle
     if(aliveCntr % 25 == 0) {
       consoleWhite("sending still-alive email " + aliveCntr);
@@ -121,31 +116,19 @@ function execWatcher() {
 
     fillUrl = url + getDateFormatted();
     consoleWhite("Downloading url: " + fillUrl);
-    request({uri:fillUrl,method:'GET',"rejectUnauthorized": false}, processRequestResponse);
-
+    var body = await getString(fillUrl);
+    consoleWhite("Download complete");
+    processRequestResponse(body);
   } catch(e) {
     consoleRed("execWatcher error: " + e.toString());
   }
-
-
 }
 
-function processRequestResponse(error, res, body) {
+function processRequestResponse(body) {
 
   try {
 
-      if(error) {
-
-          var errMsgSubject = 'Fill event request error';
-          consoleRed("request error for " + fillUrl + " : " + error.toString());
-          sendEmail("Error: " + error.toString(), emailAddresses.monitor, null, errMsgSubject);
-
-          sendSmsIfErrorsContinue(errMsgSubject);
-
-          setWatcherTimeout();
-          return;
-
-      } else if (body == null || body.length < 2) {
+      if (body == null || body.length < 2) {
           var errMsgSubject = 'Fill body empty or null';
           consoleRed("body error for " + fillUrl + " : " + (body == null ? "" : body));
           sendSmsIfErrorsContinue(errMsgSubject);
@@ -160,12 +143,12 @@ function processRequestResponse(error, res, body) {
 
       var previousEvents = getPreviousEvents(),
       newEvents = findNewEvents(previousEvents, currentEvents);
-	  var numNewEvents = newEvents.length;
+      var numNewEvents = newEvents.length;
       logEventsRead(currentEvents);
-	  var shorten = function(str,max){
-		var len = Math.min(str.length,max);
-		return str.substring(0,len);
-	  }
+      var shorten = function(str,max){
+      var len = Math.min(str.length,max);
+      return str.substring(0,len);
+    }
       if(numNewEvents > 0 ) {
 		var eventsStr = shorten(newEvents[0],25);
 		var subject = shorten(newEvents[0],10);
@@ -181,7 +164,6 @@ function processRequestResponse(error, res, body) {
       saveCurrentEvents(currentEvents); // save the current events so they become previous events next time around
       
       setWatcherTimeout();
-
   } catch(e) { 
       var errMsgSubject = 'Fill event processRequestResponse error';
       consoleRed("processRequestResponse error: " + e.toString());
@@ -189,9 +171,7 @@ function processRequestResponse(error, res, body) {
       sendSmsIfErrorsContinue(errMsgSubject);			
       setWatcherTimeout();
   }
-
 }
-
 
 function sendSmsIfErrorsContinue(errMsgSubject) {
   if(errorCntr++ % 5 == 0) {
@@ -201,8 +181,8 @@ function sendSmsIfErrorsContinue(errMsgSubject) {
 }
 
 function parseEventDescArr(body) {
-
-  body = body.substring(1, body.length-1);      
+  body = removeLinebreaks(body);
+  body = body.substring(1, body.length-1);
   var objData = JSON.parse(body);
   var eventsJson = unescape(objData.data);
   var fullObjEvents = JSON.parse(eventsJson);
@@ -210,6 +190,7 @@ function parseEventDescArr(body) {
   var currentEvents = _.pluck(fullObjHasSeatsEvents, 'shortDesc');
   return currentEvents;
 }
+
 function sendEmail(eventDetail, toEmailAddress, ccEmailAddress, subject) {
   var server  = emailjs.server.connect({
      user:     emailAddresses.from, 
@@ -233,7 +214,6 @@ function sendEmail(eventDetail, toEmailAddress, ccEmailAddress, subject) {
       consoleGreen("Email sent for: " + eventDetail);
     }
   });
-
 }
 
 function getDateTime() {
@@ -260,6 +240,9 @@ function logEventsRead(eventsStr) {
 
 // Returns a random number between min (inclusive) and max (exclusive)
 function getRandom(min, max) {return Math.random() * (max - min) + min;}
+
+function getDateFormatted() {var today = new Date();return today.getFullYear() + "-" + (today.getMonth()+1) + "-" + today.getDate();}
+function removeLinebreaks(str) {return str.replace( /[\r\n]+/gm, "");}
 
 function consoleGreen(str) {console.log(chalk.green( getDateTime() + ": " + str));}
 function consoleRed(str) {console.log(chalk.red( getDateTime() + ": " + str));}
